@@ -1,9 +1,7 @@
 # DNSForge
----
 DNSForge is a network pentesting tool that aims to forge DNS responses as if they were originating from the authoritative nameserver. This tool is intended to be used alongside [Responder](https://github.com/lgandx/Responder) and [arpspoof](https://linux.die.net/man/8/arpspoof).
 
 ## Installation
----
 The dependencies can be installed using [Poetry](https://python-poetry.org/)
 ```
 poetry install
@@ -11,7 +9,6 @@ poetry shell
 ```
 
 ## Usage
----
 ```
 usage: dnsforge.py [-h] --interface INTERFACE --dns-server DNS_SERVER --query-name QUERY_NAME --poison-ip POISON_IP
 
@@ -30,7 +27,6 @@ options:
 ```
 
 ## Example
----
 Sample scenario of poisoning DNS requests for WPAD issued by victim host:
 1. Setup DNS Forge to poison incoming requests
 ```sudo python3 dnsforge.py -d <DNS Server> -i <Interface> -qn wpad -p <Poison IP>```
